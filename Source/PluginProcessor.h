@@ -60,6 +60,15 @@ public:
     std::atomic<float> meterGRSide    {    0.0f };
     std::atomic<float> meterTruePeak  { -144.0f };
 
+    // ── File-injection for standalone playback (written on UI thread) ─────────
+    juce::AudioBuffer<float>  fileInputBuffer;
+    std::atomic<bool>         fileBufferReady  { false };
+    std::atomic<int>          filePlayPosition { 0 };
+    std::atomic<bool>         filePlaybackActive { false };
+    double                    fileInputSampleRate = 44100.0;
+
+    friend class MasteringCompressorAudioProcessorEditor;
+
 private:
     //==========================================================================
     // DSP components

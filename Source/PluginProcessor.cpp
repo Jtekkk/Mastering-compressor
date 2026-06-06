@@ -201,6 +201,29 @@ void MasteringCompressorAudioProcessor::processBlock (juce::AudioBuffer<float>& 
 {
     juce::ScopedNoDenormals noDenormals;
 
+    // ── File injection (standalone playback mode) ─────────────────────────────
+    if (filePlaybackActive.load() && fileBufferReady.load())
+    {
+        const int pos   = filePlayPosition.load();
+        const int total = fileInputBuffer.getNumSamples();
+        const int n     = buffer.getNumSamples();
+        const int avail = std::max (0, std::min (n, total - pos));
+
+        for (int ch = 0; ch < std::min (buffer.getNumChannels(),
+                                         fileInputBuffer.getNumChannels()); ++ch)
+        {
+            if (avail > 0)
+                buffer.copyFrom (ch, 0, fileInputBuffer, ch, pos, avail);
+            if (avail < n)
+                buffer.clear (ch, avail, n - avail);
+        }
+
+        filePlayPosition.fetch_add (n);
+
+        if (pos + n >= total)
+            filePlaybackActive.store (false);
+    }
+
     // ── Update parameter targets ──────────────────────────────────────────────
     smThreshold.setTargetValue (apvts.getRawParameterValue ("threshold")->load());
     smRatio.setTargetValue     (apvts.getRawParameterValue ("ratio")->load());
