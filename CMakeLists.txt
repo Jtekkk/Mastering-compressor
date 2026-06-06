@@ -10,6 +10,14 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 if(WIN32)
     if(MSVC)
         set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+        # Emit debug symbols (.pdb) even in Release so crash backtraces resolve
+        # to function names, without changing the Release output layout.
+        add_compile_options($<$<CONFIG:Release>:/Zi>)
+        add_link_options(
+            $<$<CONFIG:Release>:/DEBUG>
+            $<$<CONFIG:Release>:/OPT:REF>
+            $<$<CONFIG:Release>:/OPT:ICF>
+        )
     elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
         add_link_options(
             -static-libgcc

@@ -4,11 +4,26 @@
 using APVTS = juce::AudioProcessorValueTreeState;
 
 //==============================================================================
+// Crash diagnostics — on any access violation / unhandled exception, write a
+// symbol-resolved stack backtrace next to the user so we can pinpoint the
+// faulting function. The .pdb shipped alongside the binary lets JUCE resolve
+// addresses to names. Installed once, the first time a processor is created.
+static void masteringCompressorCrashHandler (void*)
+{
+    const auto trace = juce::SystemStats::getStackBacktrace();
+    juce::File::getSpecialLocation (juce::File::userDesktopDirectory)
+        .getChildFile ("MasteringCompressor_crash.txt")
+        .replaceWithText ("Mastering Compressor crashed.\n\n"
+                          "Stack backtrace:\n" + trace);
+}
+
+//==============================================================================
 MasteringCompressorAudioProcessor::MasteringCompressorAudioProcessor()
     : AudioProcessor (BusesProperties()
                         .withInput  ("Input",  juce::AudioChannelSet::stereo(), true)
                         .withOutput ("Output", juce::AudioChannelSet::stereo(), true))
 {
+    juce::SystemStats::setApplicationCrashHandler (masteringCompressorCrashHandler);
 }
 
 //==============================================================================
@@ -254,6 +269,12 @@ void MasteringCompressorAudioProcessor::processBlock (juce::AudioBuffer<float>& 
     // Update lookahead
     lookaheadSamples = static_cast<int> (lookaheadMs * 0.001f * currentSampleRate);
 
+    // This processor is hard-wired stereo; bail safely if the host/standalone
+    // ever hands us fewer than two channels (otherwise channel 1 below would
+    // be an out-of-bounds access → 0xC0000005).
+    if (buffer.getNumChannels() < 2)
+        return;
+
     auto* channelL = buffer.getWritePointer (0);
     auto* channelR = buffer.getWritePointer (1);
     const int numSamples = buffer.getNumSamples();
@@ -360,8 +381,13 @@ void MasteringCompressorAudioProcessor::processBlock (juce::AudioBuffer<float>& 
     meterGRSide.store   (grSideMax);
 
     // ── Oversampled stage: harmonics + true peak limiter ──────────────────────
+    // The oversampler is created for exactly 2 channels. A standalone audio
+    // device (HDMI/virtual multichannel) can hand us a buffer with a different
+    // channel count, so feed the oversampler a strict 2-channel subset to avoid
+    // a channel-count mismatch (out-of-bounds → access violation).
+    if (oversampler != nullptr && buffer.getNumChannels() >= 2)
     {
-        auto block = juce::dsp::AudioBlock<float> (buffer);
+        auto block = juce::dsp::AudioBlock<float> (buffer).getSubsetChannelBlock (0, 2);
         auto upBlock = oversampler->processSamplesUp (block);
 
         const int upSamples = static_cast<int> (upBlock.getNumSamples());
