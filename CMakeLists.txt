@@ -42,6 +42,8 @@ target_compile_definitions(MasteringCompressor PUBLIC
 
 target_include_directories(MasteringCompressor PRIVATE Source)
 
+juce_generate_juce_header(MasteringCompressor)
+
 target_link_libraries(MasteringCompressor
     PRIVATE
         juce::juce_audio_utils
