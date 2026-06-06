@@ -4,6 +4,7 @@
 !define VST3_DIR          "C:\Program Files\Common Files\VST3"
 !define STANDALONE_DIR    "C:\Program Files\Jtekkk\Mastering Compressor"
 !define UNINST_KEY        "Software\Microsoft\Windows\CurrentVersion\Uninstall\${PRODUCT_NAME}"
+!define RUNTIME_DLL       "libwinpthread-1.dll"
 
 Name              "${PRODUCT_NAME} ${PRODUCT_VERSION}"
 OutFile           "Mastering_Compressor_Setup.exe"
@@ -21,8 +22,6 @@ Unicode           True
 !define MUI_ICON         "${NSISDIR}\Contrib\Graphics\Icons\modern-install.ico"
 !define MUI_UNICON       "${NSISDIR}\Contrib\Graphics\Icons\modern-uninstall.ico"
 !define MUI_HEADERIMAGE
-!define MUI_BGCOLOR      "1A1A2E"
-!define MUI_TEXTCOLOR    "FFFFFF"
 
 !insertmacro MUI_PAGE_WELCOME
 !insertmacro MUI_PAGE_COMPONENTS
@@ -35,20 +34,30 @@ Unicode           True
 !insertmacro MUI_LANGUAGE "English"
 
 ;---------------------------------------------------------------------------
+; Runtime helper — installs libwinpthread to System32 so DAWs that lock
+; down the DLL search path (SetDllDirectory "") can still find it.
+;---------------------------------------------------------------------------
+Section -Runtime
+    ; $SYSDIR == C:\Windows\System32 on 64-bit Windows (correct for 64-bit DLLs)
+    SetOutPath "$SYSDIR"
+    File "/usr/x86_64-w64-mingw32/lib/${RUNTIME_DLL}"
+SectionEnd
+
+;---------------------------------------------------------------------------
 ; Sections
 ;---------------------------------------------------------------------------
 Section "VST3 Plugin" SEC_VST3
     SectionIn RO          ; required
 
     SetOutPath "${VST3_DIR}\${PRODUCT_NAME}.vst3\Contents\x86_64-win"
+    ; Only the plugin DLL — runtime is in System32, no need for copies here
     File "build-win\MasteringCompressor_artefacts\Release\VST3\Mastering Compressor.vst3\Contents\x86_64-win\Mastering Compressor.vst3"
-    File "build-win\MasteringCompressor_artefacts\Release\VST3\Mastering Compressor.vst3\Contents\x86_64-win\libgcc_s_seh-1.dll"
-    File "build-win\MasteringCompressor_artefacts\Release\VST3\Mastering Compressor.vst3\Contents\x86_64-win\libstdc++-6.dll"
-    File "build-win\MasteringCompressor_artefacts\Release\VST3\Mastering Compressor.vst3\Contents\x86_64-win\libwinpthread-1.dll"
 
     SetOutPath "${VST3_DIR}\${PRODUCT_NAME}.vst3\Contents\Resources"
     File "build-win\MasteringCompressor_artefacts\Release\VST3\Mastering Compressor.vst3\Contents\Resources\moduleinfo.json"
 
+    ; Store uninstaller in the standalone dir (created first by the -Runtime section)
+    SetOutPath "$INSTDIR"
     WriteUninstaller "$INSTDIR\Uninstall.exe"
 
     WriteRegStr   HKLM "${UNINST_KEY}" "DisplayName"     "${PRODUCT_NAME}"
@@ -62,9 +71,7 @@ SectionEnd
 Section "Standalone Application" SEC_STANDALONE
     SetOutPath "$INSTDIR"
     File "build-win\MasteringCompressor_artefacts\Release\Standalone\Mastering Compressor.exe"
-    File "build-win\MasteringCompressor_artefacts\Release\Standalone\libgcc_s_seh-1.dll"
-    File "build-win\MasteringCompressor_artefacts\Release\Standalone\libstdc++-6.dll"
-    File "build-win\MasteringCompressor_artefacts\Release\Standalone\libwinpthread-1.dll"
+    ; Runtime already in System32 — no copies needed next to the exe either
 
     CreateDirectory "$SMPROGRAMS\${PRODUCT_PUBLISHER}"
     CreateShortcut  "$SMPROGRAMS\${PRODUCT_PUBLISHER}\${PRODUCT_NAME}.lnk" \
@@ -76,8 +83,8 @@ SectionEnd
 ;---------------------------------------------------------------------------
 ; Section descriptions
 ;---------------------------------------------------------------------------
-LangString DESC_VST3       ${LANG_ENGLISH} "VST3 plugin for use in your DAW (Ableton, Reaper, FL Studio, etc.)"
-LangString DESC_STANDALONE ${LANG_ENGLISH} "Standalone application with built-in audio I/O"
+LangString DESC_VST3       ${LANG_ENGLISH} "VST3 plugin — installs to Program Files\Common Files\VST3"
+LangString DESC_STANDALONE ${LANG_ENGLISH} "Standalone app with file load/play/export and a desktop shortcut"
 
 !insertmacro MUI_FUNCTION_DESCRIPTION_BEGIN
     !insertmacro MUI_DESCRIPTION_TEXT ${SEC_VST3}       $(DESC_VST3)
@@ -93,5 +100,6 @@ Section "Uninstall"
     Delete   "$SMPROGRAMS\${PRODUCT_PUBLISHER}\${PRODUCT_NAME}.lnk"
     RMDir    "$SMPROGRAMS\${PRODUCT_PUBLISHER}"
     Delete   "$DESKTOP\${PRODUCT_NAME}.lnk"
+    ; Note: we leave the runtime DLL in System32 — other programs may use it
     DeleteRegKey HKLM "${UNINST_KEY}"
 SectionEnd

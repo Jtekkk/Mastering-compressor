@@ -4,6 +4,16 @@ project(MasteringCompressor VERSION 1.0.0)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# Statically embed MinGW runtimes into every binary so the VST3/exe have
+# zero external MinGW DLL dependencies (required for FL Studio and other
+# DAWs that don't add the plugin directory to the Windows DLL search path).
+if(WIN32)
+    add_link_options(
+        -static-libgcc
+        -static-libstdc++
+    )
+endif()
+
 include(FetchContent)
 
 FetchContent_Declare(
