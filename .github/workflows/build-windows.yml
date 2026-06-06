@@ -1,0 +1,55 @@
+name: Build Windows
+
+on:
+  push:
+    branches:
+      - "claude/chatgpt-shared-session-CgZsY"
+      - main
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Install NSIS
+      run: choco install nsis -y
+
+    - name: Configure CMake
+      run: cmake -B build-win -G "Visual Studio 17 2022" -A x64
+
+    - name: Build VST3
+      run: cmake --build build-win --config Release --target MasteringCompressor_VST3
+
+    - name: Build Standalone
+      run: cmake --build build-win --config Release --target MasteringCompressor_Standalone
+
+    - name: Create installer
+      run: |
+        $nsis = "C:\Program Files (x86)\NSIS\makensis.exe"
+        & $nsis installer.nsi
+      shell: pwsh
+
+    - name: Upload installer
+      uses: actions/upload-artifact@v4
+      with:
+        name: Mastering_Compressor_Setup
+        path: Mastering_Compressor_Setup.exe
+        retention-days: 30
+
+    - name: Upload VST3 (bare, no installer)
+      uses: actions/upload-artifact@v4
+      with:
+        name: Mastering_Compressor_VST3
+        path: "build-win/MasteringCompressor_artefacts/Release/VST3"
+        retention-days: 30
+
+    - name: Upload Standalone (bare, no installer)
+      uses: actions/upload-artifact@v4
+      with:
+        name: Mastering_Compressor_Standalone
+        path: "build-win/MasteringCompressor_artefacts/Release/Standalone"
+        retention-days: 30
