@@ -1,0 +1,9 @@
+build/
+.cache/
+*.DS_Store
+*.vscode
+*.idea
+*.user
+CMakeFiles/
+cmake_install.cmake
+CMakeCache.txt
