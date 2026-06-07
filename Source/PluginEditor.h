@@ -185,12 +185,14 @@ private:
     juce::Slider slMidRatio, slSideRatio;
     juce::Slider slRmsBlend, slStereoLink, slScHPF, slLookahead;
     juce::Slider slHarmonicDrive, slCeiling;
+    juce::Slider slInputGain, slBlend, slTubeGrit, slSopank, slFlap, slSpoogle;
 
     juce::Label lblThreshold, lblRatio, lblAttack, lblRelease, lblKnee, lblMakeup;
     juce::Label lblMidRatio, lblSideRatio;
     juce::Label lblRmsBlend, lblStereoLink, lblScHPF, lblLookahead;
     juce::Label lblHarmonicDrive, lblCeiling;
-    juce::Label lblSectionComp, lblSectionMS, lblSectionDet, lblSectionOut;
+    juce::Label lblSectionComp, lblSectionMS, lblSectionDet, lblSectionOut, lblSectionChar;
+    juce::Label lblInputGain, lblBlend, lblTubeGrit, lblSopank, lblFlap, lblSpoogle;
 
     juce::ToggleButton btnAutoMakeup { "Auto" };
     juce::ToggleButton btnMsMode     { "M/S" };
@@ -204,7 +206,9 @@ private:
     std::unique_ptr<SliderAttachment> attThreshold, attRatio, attAttack, attRelease,
                                       attKnee, attMakeup, attMidRatio, attSideRatio,
                                       attRmsBlend, attStereoLink, attScHPF, attLookahead,
-                                      attHarmonicDrive, attCeiling;
+                                      attHarmonicDrive, attCeiling,
+                                      attInputGain, attBlend, attTubeGrit,
+                                      attSopank, attFlap, attSpoogle;
     std::unique_ptr<ButtonAttachment> attAutoMakeup, attMsMode;
     std::unique_ptr<ComboAttachment>  attHarmonicMode, attOversampling;
 

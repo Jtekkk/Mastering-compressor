@@ -8,6 +8,9 @@
 #include "DSP/CompressorChannel.h"
 #include "DSP/HarmonicSaturation.h"
 #include "DSP/TruePeakLimiter.h"
+#include "DSP/Sopank.h"
+#include "DSP/Flap.h"
+#include "DSP/Spoogle.h"
 
 class MasteringCompressorAudioProcessor : public juce::AudioProcessor
 {
@@ -72,12 +75,16 @@ public:
 private:
     //==========================================================================
     // DSP components
-    DCBlock          dcBlockL, dcBlockR;
-    LookaheadBuffer  lookaheadMid,  lookaheadSide;
-    SidechainFilter  scFilterMid,   scFilterSide;
-    CompressorChannel midComp,      sideComp;
+    DCBlock           dcBlockL, dcBlockR;
+    LookaheadBuffer   lookaheadMid,  lookaheadSide;
+    LookaheadBuffer   dryBufL,       dryBufR;   // delayed dry for parallel blend
+    SidechainFilter   scFilterMid,   scFilterSide;
+    CompressorChannel midComp,       sideComp;
     HarmonicSaturation harmonics;
     TruePeakLimiter    limiter;
+    SopankProcessor    sopankProc;
+    FlapProcessor      flapProc;
+    SpoogleProcessor   spoogleProc;
 
     // Oversampling — recreated in prepareToPlay based on parameter
     std::unique_ptr<juce::dsp::Oversampling<float>> oversampler;
@@ -101,6 +108,9 @@ private:
     juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> smMakeup;
     juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> smMidRatio;
     juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> smSideRatio;
+    juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> smInputGain;
+    juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> smBlend;
+    juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> smTubeGrit;
 
     //==========================================================================
     inline float linToDb (float lin) const noexcept

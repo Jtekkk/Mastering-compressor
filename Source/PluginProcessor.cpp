@@ -114,6 +114,32 @@ APVTS::ParameterLayout MasteringCompressorAudioProcessor::createParameterLayout(
         juce::NormalisableRange<float> (-6.0f, 0.0f, 0.1f), -0.3f,
         juce::AudioParameterFloatAttributes().withLabel ("dBFS")));
 
+    // ── Character ─────────────────────────────────────────────────────────────
+    layout.add (std::make_unique<juce::AudioParameterFloat> (
+        "inputGain", "Input Gain",
+        juce::NormalisableRange<float> (-24.0f, 24.0f, 0.1f), 0.0f,
+        juce::AudioParameterFloatAttributes().withLabel ("dB")));
+
+    layout.add (std::make_unique<juce::AudioParameterFloat> (
+        "blend", "Blend",
+        juce::NormalisableRange<float> (0.0f, 1.0f, 0.01f), 1.0f));
+
+    layout.add (std::make_unique<juce::AudioParameterFloat> (
+        "tubeGrit", "Tube Grit",
+        juce::NormalisableRange<float> (0.0f, 1.0f, 0.01f), 0.0f));
+
+    layout.add (std::make_unique<juce::AudioParameterFloat> (
+        "sopank", "Sopank",
+        juce::NormalisableRange<float> (0.0f, 1.0f, 0.01f), 0.0f));
+
+    layout.add (std::make_unique<juce::AudioParameterFloat> (
+        "flap", "Flap",
+        juce::NormalisableRange<float> (0.0f, 1.0f, 0.01f), 0.0f));
+
+    layout.add (std::make_unique<juce::AudioParameterFloat> (
+        "spoogle", "Spoogle",
+        juce::NormalisableRange<float> (0.0f, 1.0f, 0.01f), 0.0f));
+
     return layout;
 }
 
@@ -144,6 +170,8 @@ void MasteringCompressorAudioProcessor::prepareToPlay (double sampleRate, int sa
     const int maxLookahead = static_cast<int> (std::ceil (10e-3 * sampleRate)) + 1;
     lookaheadMid.prepare  (maxLookahead);
     lookaheadSide.prepare (maxLookahead);
+    dryBufL.prepare       (maxLookahead);
+    dryBufR.prepare       (maxLookahead);
 
     const float lookaheadMs = apvts.getRawParameterValue ("lookahead")->load();
     lookaheadSamples = static_cast<int> (lookaheadMs * 0.001f * sampleRate);
@@ -160,6 +188,11 @@ void MasteringCompressorAudioProcessor::prepareToPlay (double sampleRate, int sa
     // ── Compressor channels ───────────────────────────────────────────────────
     midComp.reset();
     sideComp.reset();
+
+    // ── Character effects ─────────────────────────────────────────────────────
+    sopankProc.prepare  (static_cast<float> (sampleRate));
+    flapProc.prepare    (static_cast<float> (sampleRate));
+    spoogleProc.prepare (static_cast<float> (sampleRate));
 
     // ── Harmonic saturation ───────────────────────────────────────────────────
     harmonics.prepare (oversampledRate);
@@ -186,6 +219,13 @@ void MasteringCompressorAudioProcessor::prepareToPlay (double sampleRate, int sa
     smMakeup.setCurrentAndTargetValue    (apvts.getRawParameterValue ("makeup")->load());
     smMidRatio.setCurrentAndTargetValue  (apvts.getRawParameterValue ("midRatio")->load());
     smSideRatio.setCurrentAndTargetValue (apvts.getRawParameterValue ("sideRatio")->load());
+
+    smInputGain.reset (sampleRate, rampSec);
+    smBlend.reset     (sampleRate, rampSec);
+    smTubeGrit.reset  (sampleRate, rampSec);
+    smInputGain.setCurrentAndTargetValue (apvts.getRawParameterValue ("inputGain")->load());
+    smBlend.setCurrentAndTargetValue     (apvts.getRawParameterValue ("blend")->load());
+    smTubeGrit.setCurrentAndTargetValue  (apvts.getRawParameterValue ("tubeGrit")->load());
 
     // ── Latency ───────────────────────────────────────────────────────────────
     setLatencySamples (lookaheadSamples
@@ -247,6 +287,9 @@ void MasteringCompressorAudioProcessor::processBlock (juce::AudioBuffer<float>& 
     smRelease.setTargetValue   (apvts.getRawParameterValue ("release")->load());
     smMidRatio.setTargetValue  (apvts.getRawParameterValue ("midRatio")->load());
     smSideRatio.setTargetValue (apvts.getRawParameterValue ("sideRatio")->load());
+    smInputGain.setTargetValue (apvts.getRawParameterValue ("inputGain")->load());
+    smBlend.setTargetValue     (apvts.getRawParameterValue ("blend")->load());
+    smTubeGrit.setTargetValue  (apvts.getRawParameterValue ("tubeGrit")->load());
 
     const bool   autoMakeup  = apvts.getRawParameterValue ("autoMakeup")->load() > 0.5f;
     const bool   msMode      = apvts.getRawParameterValue ("msMode")->load() > 0.5f;
@@ -291,13 +334,32 @@ void MasteringCompressorAudioProcessor::processBlock (juce::AudioBuffer<float>& 
     // ── Per-sample compression loop ───────────────────────────────────────────
     for (int i = 0; i < numSamples; ++i)
     {
+        // 0. Input gain
+        const float inGainLin = dbToLin (smInputGain.getNextValue());
+        channelL[i] *= inGainLin;
+        channelR[i] *= inGainLin;
+
         // 1. DC block
         float inL = dcBlockL.process (channelL[i]);
         float inR = dcBlockR.process (channelR[i]);
 
+        // 1b. Store pre-compression signal for parallel blend
+        dryBufL.write (inL);
+        dryBufR.write (inR);
+
         // 2. Input metering
         inPeakL = std::max (inPeakL, std::abs (inL));
         inPeakR = std::max (inPeakR, std::abs (inR));
+
+        // 2b. Tube grit (soft-clip waveshaper before compression)
+        const float grit = smTubeGrit.getNextValue();
+        if (grit > 1e-4f)
+        {
+            const float k    = 1.0f + grit * 4.0f;
+            const float norm = std::tanh (k);
+            inL = std::tanh (k * inL) / norm;
+            inR = std::tanh (k * inR) / norm;
+        }
 
         // 3. M/S encode
         const float mid  = (inL + inR) * 0.70710678f;
@@ -372,6 +434,16 @@ void MasteringCompressorAudioProcessor::processBlock (juce::AudioBuffer<float>& 
         // 14. M/S decode
         channelL[i] = (delayedMid + delayedSide) * 0.70710678f;
         channelR[i] = (delayedMid - delayedSide) * 0.70710678f;
+
+        // 15. Parallel blend with lookahead-delayed dry signal
+        const float blendAmt = smBlend.getNextValue();
+        if (blendAmt < 0.9999f)
+        {
+            const float dL = dryBufL.read (lookaheadSamples);
+            const float dR = dryBufR.read (lookaheadSamples);
+            channelL[i] = blendAmt * channelL[i] + (1.0f - blendAmt) * dL;
+            channelR[i] = blendAmt * channelR[i] + (1.0f - blendAmt) * dR;
+        }
     }
 
     // ── Atomic meter updates ──────────────────────────────────────────────────
@@ -379,6 +451,22 @@ void MasteringCompressorAudioProcessor::processBlock (juce::AudioBuffer<float>& 
     meterInPeakR.store  (linToDb (inPeakR));
     meterGRMid.store    (grMidMax);
     meterGRSide.store   (grSideMax);
+
+    // ── Character effects (post-compression, pre-oversampled stage) ───────────
+    {
+        const float sopankAmt  = apvts.getRawParameterValue ("sopank") ->load();
+        const float flapAmt    = apvts.getRawParameterValue ("flap")   ->load();
+        const float spoogleAmt = apvts.getRawParameterValue ("spoogle")->load();
+
+        for (int i = 0; i < numSamples; ++i)
+        {
+            sopankProc.processStereo  (channelL[i], channelR[i], sopankAmt);
+            const float fg = flapProc.nextGainMultiplier (flapAmt);
+            channelL[i] *= fg;
+            channelR[i] *= fg;
+            spoogleProc.processStereo (channelL[i], channelR[i], spoogleAmt);
+        }
+    }
 
     // ── Oversampled stage: harmonics + true peak limiter ──────────────────────
     // The oversampler is created for exactly 2 channels. A standalone audio

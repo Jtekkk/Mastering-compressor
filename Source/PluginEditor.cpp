@@ -41,7 +41,7 @@ MasteringCompressorAudioProcessorEditor::MasteringCompressorAudioProcessorEditor
       isStandalone (juce::JUCEApplicationBase::isStandaloneApp())
 {
     buildUI();
-    setSize (860, isStandalone ? 700 : 540);
+    setSize (1060, isStandalone ? 700 : 540);
     startTimerHz (30);
 }
 
@@ -127,6 +127,22 @@ void MasteringCompressorAudioProcessorEditor::buildUI()
     attHarmonicMode  = std::make_unique<ComboAttachment>  (apvts, "harmonicMode",  cmbHarmonicMode);
     attOversampling  = std::make_unique<ComboAttachment>  (apvts, "oversamplingOrder", cmbOversampling);
 
+    // ── Character section ─────────────────────────────────────────────────────
+    setupSectionLabel (lblSectionChar, "CHARACTER", this);
+    setupSlider (slInputGain, lblInputGain, "In Gain",   this);
+    setupSlider (slBlend,     lblBlend,     "Blend",     this);
+    setupSlider (slTubeGrit,  lblTubeGrit,  "Tube Grit", this);
+    setupSlider (slSopank,    lblSopank,    "Sopank",    this);
+    setupSlider (slFlap,      lblFlap,      "Flap",      this);
+    setupSlider (slSpoogle,   lblSpoogle,   "Spoogle",   this);
+
+    attInputGain = std::make_unique<SliderAttachment> (apvts, "inputGain", slInputGain);
+    attBlend     = std::make_unique<SliderAttachment> (apvts, "blend",     slBlend);
+    attTubeGrit  = std::make_unique<SliderAttachment> (apvts, "tubeGrit",  slTubeGrit);
+    attSopank    = std::make_unique<SliderAttachment> (apvts, "sopank",    slSopank);
+    attFlap      = std::make_unique<SliderAttachment> (apvts, "flap",      slFlap);
+    attSpoogle   = std::make_unique<SliderAttachment> (apvts, "spoogle",   slSpoogle);
+
     // ── Standalone transport ──────────────────────────────────────────────────
     if (isStandalone)
     {
@@ -196,6 +212,7 @@ void MasteringCompressorAudioProcessorEditor::paint (juce::Graphics& g)
     drawCard ({ 204,        4 + yo, 298, getHeight() - yo - 8 });
     drawCard ({ 506,        4 + yo, 156, getHeight() - yo - 8 });
     drawCard ({ 666,        4 + yo, 190, getHeight() - yo - 8 });
+    drawCard ({ 860,        4 + yo, 192, getHeight() - yo - 8 });
 }
 
 //==============================================================================
@@ -286,6 +303,21 @@ void MasteringCompressorAudioProcessorEditor::resized()
     placeKnob (slCeiling,       lblCeiling,       dx + knobSz + padX, dy);
     dy += knobSz + knobLH + 10;
     cmbOversampling.setBounds (dx, dy, 80, 22);
+
+    // ── Character ─────────────────────────────────────────────────────────────
+    int chx = 866, chy = yo + 8;
+    lblSectionChar.setBounds (chx, chy, 184, secLH); chy += secLH + 4;
+
+    placeKnob (slInputGain, lblInputGain, chx,               chy);
+    placeKnob (slBlend,     lblBlend,     chx + knobSz + padX, chy);
+    chy += knobSz + knobLH + 10;
+
+    placeKnob (slTubeGrit, lblTubeGrit, chx,               chy);
+    placeKnob (slSopank,   lblSopank,   chx + knobSz + padX, chy);
+    chy += knobSz + knobLH + 10;
+
+    placeKnob (slFlap,    lblFlap,    chx,               chy);
+    placeKnob (slSpoogle, lblSpoogle, chx + knobSz + padX, chy);
 }
 
 //==============================================================================
