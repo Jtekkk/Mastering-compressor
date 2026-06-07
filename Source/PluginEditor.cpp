@@ -40,8 +40,8 @@ MasteringCompressorAudioProcessorEditor::MasteringCompressorAudioProcessorEditor
       audioProcessor (p),
       isStandalone (juce::JUCEApplicationBase::isStandaloneApp())
 {
-    setSize (860, isStandalone ? 700 : 540);
     buildUI();
+    setSize (860, isStandalone ? 700 : 540);
     startTimerHz (30);
 }
 
